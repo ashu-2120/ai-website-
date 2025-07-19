@@ -7,7 +7,7 @@ const refreshNotice = document.getElementById("refreshNotice");
 
 function createMessage(text, sender, time) {
  const msg = document.createElement("div");
- msg.classList.add("message", sender);
+  msg.classList.add("message", sender.trim()); // ✅ This removes any space in sender value
 
 
  const timestamp = new Date(time).toLocaleTimeString([], {
