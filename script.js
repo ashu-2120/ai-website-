@@ -20,7 +20,7 @@ function createMessage(text, sender, time) {
     <div class="timestamp">${timestamp}</div>
   `;
   chatWindow.appendChild(msg);
-  msg.scrollIntoView({ behavior: "smooth" });
+  chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: "smooth" });
 }
 
 async function fetchMessages() {
@@ -36,7 +36,6 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
-      lastMessageCount = data.messages.length;
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -44,7 +43,7 @@ async function fetchMessages() {
     setTimeout(() => {
       refreshNotice.style.display = "none";
       chatWindow.classList.remove("loading");
-    }, 1000);
+    }, 500);
   }
 }
 
@@ -53,65 +52,59 @@ chatForm.addEventListener("submit", async function (e) {
   const userMsg = chatInput.value.trim();
   if (!userMsg) return;
 
+  // Show user message immediately
+  createMessage(userMsg, "user", new Date().toISOString());
   chatInput.value = "";
 
-  // Show user message immediately
-  const now = new Date().toISOString();
-  createMessage(userMsg, "user", now);
-
-  // Send user's message to backend
+  // Send user message
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Show typing dots
-  const typingMsg = document.createElement("div");
-  typingMsg.classList.add("message", "bot");
-  typingMsg.innerHTML = `<div class="bubble bot">...</div>`;
-  chatWindow.appendChild(typingMsg);
-  typingMsg.scrollIntoView({ behavior: "smooth" });
+  // Get current message count
+  const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+  const data = await res.json();
+  lastMessageCount = data.messages.length;
 
-  // Wait for new AI message to arrive
-  await waitForNewMessages(typingMsg);
+  // Show typing indicator
+  const typing = document.createElement("div");
+  typing.classList.add("message", "ai");
+  typing.setAttribute("id", "typingIndicator");
+  typing.innerHTML = `<div class="bubble ai">...</div>`;
+  chatWindow.appendChild(typing);
+  chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: "smooth" });
+
+  // Wait for AI response
+  await waitForNewMessages();
 });
 
-async function waitForNewMessages(typingElement) {
-  let retries = 20;
-  let previousCount = lastMessageCount;
+async function waitForNewMessages() {
+  let retries = 15;
 
   while (retries-- > 0) {
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
-      if (data.messages.length > previousCount) {
-        const newMessages = data.messages.slice(previousCount);
-        const aiMessages = newMessages.filter((msg) => msg.user_type === "bot");
-
-        // Remove typing dot
-        typingElement.remove();
-
-        aiMessages.forEach((msg) =>
-          createMessage(msg.message, msg.user_type, msg.datetime)
-        );
-
-        lastMessageCount = data.messages.length;
+      if (data.messages.length > lastMessageCount) {
+        document.getElementById("typingIndicator")?.remove();
+        fetchMessages();
         return;
       }
     } catch (err) {
-      console.error("Waiting for AI reply failed:", err);
+      console.error("Polling failed:", err);
     }
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  console.warn("AI response not detected in time");
-  typingElement.remove();
+  console.warn("AI response timeout");
+  document.getElementById("typingIndicator")?.remove();
 }
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Initial load
+// Initial fetch on load
 fetchMessages();
