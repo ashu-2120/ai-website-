@@ -16,7 +16,7 @@ app.post("/send", async (req, res) => {
 
  try {
    await axios.post(
-     "https://dden4.app.n8n.cloud/webhook/b83a898a-208d-4a30-a134-3b513beb6244",
+     "https://ashuk21.app.n8n.cloud/webhook-test/03d740c8-cee2-42f5-a999-e5426abd8b9f",
      { message }
    );
 
@@ -34,7 +34,7 @@ app.post("/send", async (req, res) => {
 app.get("/all-messages", async (req, res) => {
  try {
    const response = await axios.get(
-     "https://dden4.app.n8n.cloud/webhook/352b1ed9-a6be-411b-a0c3-1e754c4ed900"
+     "https://ashuk21.app.n8n.cloud/webhook/a0edb4e9-1d5e-4093-bd08-eec05ee3b908"
    );
    res.json({ messages: response.data });
  } catch (err) {
