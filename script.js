@@ -53,24 +53,48 @@ async function fetchMessages() {
 }
 
 
+let lastMessageCount = 0;
+
 chatForm.addEventListener("submit", async function (e) {
- e.preventDefault();
- const userMsg = chatInput.value.trim();
- if (!userMsg) return;
+  e.preventDefault();
+  const userMsg = chatInput.value.trim();
+  if (!userMsg) return;
 
+  chatInput.value = "";
 
- chatInput.value = "";
- await fetch("https://ai-website-1gto.onrender.com/send", {
-   method: "POST",
-   headers: { "Content-Type": "application/json" },
-   body: JSON.stringify({ message: userMsg }),
- });
+  // Get current number of messages
+  const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+  const data = await res.json();
+  lastMessageCount = data.messages.length;
 
+  // Send the user's message
+  await fetch("https://ai-website-1gto.onrender.com/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message: userMsg }),
+  });
 
- setTimeout(() => {
-   refreshBtn.click();
- }, 5000); // 5s delay
+  // Wait for the AI reply
+  waitForNewMessages();
 });
+async function waitForNewMessages() {
+  let retries = 10;
+
+  while (retries-- > 0) {
+    const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+    const data = await res.json();
+
+    if (data.messages.length > lastMessageCount) {
+      fetchMessages(); // Refresh UI with AI reply
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1 sec
+  }
+
+  console.warn("AI response not detected in time");
+}
+
 
 
 refreshBtn.addEventListener("click", fetchMessages);
