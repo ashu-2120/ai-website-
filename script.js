@@ -4,23 +4,9 @@ const chatInput = document.getElementById("chatInput");
 const refreshBtn = document.getElementById("refreshBtn");
 const refreshNotice = document.getElementById("refreshNotice");
 
-// Typing indicator setup
-let typingIndicator = document.createElement("div");
-typingIndicator.classList.add("message", "ai");
-typingIndicator.innerHTML = `<div class="bubble ai">...</div><div class="timestamp">typing...</div>`;
+let lastMessageCount = 0;
+let typingIndicator;
 
-// Track last AI message time to detect new replies
-let lastAiTimestamp = null;
-
-// Smooth scroll
-function scrollToBottomSmooth() {
-  chatWindow.scrollTo({
-    top: chatWindow.scrollHeight,
-    behavior: "smooth",
-  });
-}
-
-// Render message
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
@@ -38,50 +24,50 @@ function createMessage(text, sender, time) {
   scrollToBottomSmooth();
 }
 
-// Full fetch and render
-async function fetchMessages() {
-  refreshNotice.style.display = "inline-block";
-  chatWindow.classList.add("loading");
+function showTypingDots() {
+  typingIndicator = document.createElement("div");
+  typingIndicator.classList.add("message", "ai");
+  typingIndicator.innerHTML = `
+    <div class="bubble ai">...</div>
+    <div class="timestamp">${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+  `;
+  chatWindow.appendChild(typingIndicator);
+  scrollToBottomSmooth();
+}
 
+function removeTypingDots() {
+  if (typingIndicator) {
+    typingIndicator.remove();
+    typingIndicator = null;
+  }
+}
+
+async function fetchMessages() {
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
 
     if (data.messages) {
       chatWindow.innerHTML = "";
-      data.messages.forEach((msg) => {
-        createMessage(msg.message, msg.user_type, msg.datetime);
-        if (msg.user_type === "ai") {
-          lastAiTimestamp = msg.datetime; // update last AI reply seen
-        }
-      });
+      data.messages.forEach((msg) =>
+        createMessage(msg.message, msg.user_type, msg.datetime)
+      );
     }
   } catch (err) {
     console.error("Fetch failed", err);
-  } finally {
-    setTimeout(() => {
-      refreshNotice.style.display = "none";
-      chatWindow.classList.remove("loading");
-    }, 1000);
   }
 }
 
-// Handle user submit
 chatForm.addEventListener("submit", async function (e) {
   e.preventDefault();
   const userMsg = chatInput.value.trim();
   if (!userMsg) return;
+
   chatInput.value = "";
 
-  // Show user's message immediately
-  createMessage(userMsg, "user", new Date());
-
-  // Add typing indicator
-  chatWindow.appendChild(typingIndicator);
-  scrollToBottomSmooth();
-
-  // Save current last AI reply timestamp
-  const lastSeenAiTime = lastAiTimestamp;
+  // Display user's message immediately
+  const timestamp = new Date().toISOString();
+  createMessage(userMsg, "user", timestamp);
 
   // Send message to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
@@ -90,41 +76,56 @@ chatForm.addEventListener("submit", async function (e) {
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Wait for new AI reply
+  showTypingDots();
+
+  // Start checking for AI response
+  waitForAIResponse();
+});
+
+async function waitForAIResponse() {
   let retries = 15;
-  let aiReplied = false;
 
   while (retries-- > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
-      const newAiMsg = data.messages.find(
-        (msg) => msg.user_type === "ai" && msg.datetime !== lastSeenAiTime
-      );
+      if (data.messages.length > lastMessageCount) {
+        const newMessages = data.messages.slice(lastMessageCount);
+        lastMessageCount = data.messages.length;
 
-      if (newAiMsg) {
-        aiReplied = true;
-        chatWindow.removeChild(typingIndicator);
-        chatWindow.innerHTML = "";
-        data.messages.forEach((msg) => createMessage(msg.message, msg.user_type, msg.datetime));
-        lastAiTimestamp = newAiMsg.datetime;
-        break;
+        removeTypingDots();
+
+        newMessages.forEach((msg) => {
+          createMessage(msg.message, msg.user_type, msg.datetime);
+        });
+
+        return;
       }
     } catch (err) {
-      console.error("Polling for AI reply failed:", err);
+      console.error("Waiting for AI reply failed:", err);
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  if (!aiReplied) {
-    console.warn("AI reply not received in time");
-    chatWindow.removeChild(typingIndicator);
-  }
-});
+  removeTypingDots();
+  console.warn("AI reply not received in time.");
+}
+
+function scrollToBottomSmooth() {
+  chatWindow.scrollTo({
+    top: chatWindow.scrollHeight,
+    behavior: "smooth",
+  });
+}
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Load messages on page load
-fetchMessages();
+// Initial fetch
+window.addEventListener("load", async () => {
+  await fetchMessages();
+  const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+  const data = await res.json();
+  lastMessageCount = data.messages.length;
+});
