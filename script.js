@@ -6,6 +6,14 @@ const refreshNotice = document.getElementById("refreshNotice");
 
 let lastMessageCount = 0;
 
+// Scroll smoothly to latest message
+function scrollToBottom() {
+  chatWindow.scrollTo({
+    top: chatWindow.scrollHeight,
+    behavior: "smooth",
+  });
+}
+
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
@@ -20,12 +28,9 @@ function createMessage(text, sender, time) {
     <div class="timestamp">${timestamp}</div>
   `;
   chatWindow.appendChild(msg);
-
-  // ✅ Smooth scroll to last message only
-  msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
-async function fetchMessages() {
+async function fetchMessages(scrollToEnd = true) {
   refreshNotice.style.display = "inline-block";
   chatWindow.classList.add("loading");
 
@@ -38,6 +43,7 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
+      if (scrollToEnd) scrollToBottom();
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -56,56 +62,57 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Show user's message immediately
-  createMessage(userMsg, "user", new Date().toISOString());
+  // Add user message instantly
+  const now = new Date().toISOString();
+  createMessage(userMsg, "user", now);
+  scrollToBottom();
 
-  // Send user's message
+  // Send to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Wait 1s before checking message count
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
+  // Save current message count
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
     lastMessageCount = data.messages.length;
   } catch (err) {
-    console.error("Error fetching message count:", err);
+    console.error("Could not fetch message count", err);
   }
 
-  // Start checking for AI reply
+  // Wait for AI to respond
   waitForNewMessages();
 });
 
 async function waitForNewMessages() {
-  let retries = 10;
+  let retries = 15;
 
   while (retries-- > 0) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
       if (data.messages.length > lastMessageCount) {
-        // ✅ Extra delay to ensure AI reply is saved
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        await fetchMessages();
+        const newMessages = data.messages.slice(lastMessageCount);
+        newMessages.forEach((msg) =>
+          createMessage(msg.message, msg.user_type, msg.datetime)
+        );
+        scrollToBottom();
         return;
       }
     } catch (err) {
-      console.error("Waiting for AI reply failed:", err);
+      console.error("Waiting for AI failed", err);
     }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  console.warn("AI response not detected in time");
+  console.warn("AI reply not detected after timeout.");
 }
 
-refreshBtn.addEventListener("click", fetchMessages);
+refreshBtn.addEventListener("click", () => fetchMessages(true));
 
-// Initial fetch on page load
-fetchMessages();
+// On load
+fetchMessages(true);
