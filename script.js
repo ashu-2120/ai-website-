@@ -2,7 +2,6 @@ const chatWindow = document.getElementById("chatWindow");
 const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 const refreshBtn = document.getElementById("refreshBtn");
-const refreshNotice = document.getElementById("refreshNotice");
 
 let lastMessageCount = 0;
 let typingIndicator;
@@ -52,6 +51,7 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
+      lastMessageCount = data.messages.length;
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -65,11 +65,11 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Display user's message immediately
+  // Show user message instantly
   const timestamp = new Date().toISOString();
   createMessage(userMsg, "user", timestamp);
 
-  // Send message to backend
+  // Send to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -78,7 +78,7 @@ chatForm.addEventListener("submit", async function (e) {
 
   showTypingDots();
 
-  // Start checking for AI response
+  // Wait for AI reply
   waitForAIResponse();
 });
 
@@ -96,10 +96,15 @@ async function waitForAIResponse() {
 
         removeTypingDots();
 
+        // Show only new AI messages before full refresh
         newMessages.forEach((msg) => {
-          createMessage(msg.message, msg.user_type, msg.datetime);
+          if (msg.user_type === "ai") {
+            createMessage(msg.message, msg.user_type, msg.datetime);
+          }
         });
 
+        // After short delay, refresh full chat
+        setTimeout(fetchMessages, 1000);
         return;
       }
     } catch (err) {
@@ -109,8 +114,8 @@ async function waitForAIResponse() {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
+  console.warn("AI reply not received in time");
   removeTypingDots();
-  console.warn("AI reply not received in time.");
 }
 
 function scrollToBottomSmooth() {
@@ -123,9 +128,4 @@ function scrollToBottomSmooth() {
 refreshBtn.addEventListener("click", fetchMessages);
 
 // Initial fetch
-window.addEventListener("load", async () => {
-  await fetchMessages();
-  const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
-  const data = await res.json();
-  lastMessageCount = data.messages.length;
-});
+window.addEventListener("load", fetchMessages);
