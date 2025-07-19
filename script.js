@@ -100,24 +100,23 @@ async function waitForNewMessages() {
       const data = await res.json();
 
       if (data.messages.length > lastMessageCount) {
-        // Remove typing dots
         const typing = document.getElementById("typing");
         if (typing) typing.remove();
 
-        fetchMessages(); // Update chat
+        // Wait a moment for backend/sheet to sync
+        setTimeout(() => {
+          fetchMessages();
+        }, 1000);
+
         return;
       }
     } catch (err) {
       console.error("Waiting for AI reply failed:", err);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1s
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   console.warn("AI response not detected in time");
 }
 
-refreshBtn.addEventListener("click", fetchMessages);
-
-// Initial fetch
-fetchMessages();
