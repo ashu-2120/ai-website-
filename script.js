@@ -36,6 +36,7 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
+      lastMessageCount = data.messages.length;
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -54,52 +55,45 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Optimistically show user message
+  // Show user message immediately
   const now = new Date().toISOString();
   createMessage(userMsg, "user", now);
 
-  // Send user's message
+  // Send user's message to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Get message count after user message
-  try {
-    const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
-    const data = await res.json();
-    lastMessageCount = data.messages.length;
-  } catch (err) {
-    console.error("Error fetching message count:", err);
-  }
-
-  // Show typing indicator
+  // Show typing dots
   const typingMsg = document.createElement("div");
   typingMsg.classList.add("message", "bot");
   typingMsg.innerHTML = `<div class="bubble bot">...</div>`;
   chatWindow.appendChild(typingMsg);
   typingMsg.scrollIntoView({ behavior: "smooth" });
 
-  // Wait until AI response is available
+  // Wait for new AI message to arrive
   await waitForNewMessages(typingMsg);
 });
 
 async function waitForNewMessages(typingElement) {
   let retries = 20;
+  let previousCount = lastMessageCount;
 
   while (retries-- > 0) {
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
-      if (data.messages.length > lastMessageCount) {
-        // Remove typing indicator
+      if (data.messages.length > previousCount) {
+        const newMessages = data.messages.slice(previousCount);
+        const aiMessages = newMessages.filter((msg) => msg.user_type === "bot");
+
+        // Remove typing dot
         typingElement.remove();
 
-        // Add only the new AI message(s)
-        const newMessages = data.messages.slice(lastMessageCount);
-        newMessages.forEach((msg) =>
+        aiMessages.forEach((msg) =>
           createMessage(msg.message, msg.user_type, msg.datetime)
         );
 
@@ -119,5 +113,5 @@ async function waitForNewMessages(typingElement) {
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Initial fetch on load
+// Initial load
 fetchMessages();
