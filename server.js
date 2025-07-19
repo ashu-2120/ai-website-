@@ -16,7 +16,7 @@ app.post("/send", async (req, res) => {
 
  try {
    await axios.post(
-     "https://ashuk21.app.n8n.cloud/webhook-test/03d740c8-cee2-42f5-a999-e5426abd8b9f",
+     "https://ashuk21.app.n8n.cloud/webhook/03d740c8-cee2-42f5-a999-e5426abd8b9f",
      { message }
    );
 
@@ -29,7 +29,7 @@ app.post("/send", async (req, res) => {
  }
 });
 
-
+//ashutosh 
 // 📤 2. Frontend will call this to fetch all messages
 app.get("/all-messages", async (req, res) => {
  try {
