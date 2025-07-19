@@ -5,7 +5,6 @@ const refreshBtn = document.getElementById("refreshBtn");
 const refreshNotice = document.getElementById("refreshNotice");
 
 let lastMessageCount = 0;
-let typingBubble = null;
 
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
@@ -24,30 +23,6 @@ function createMessage(text, sender, time) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// Add typing dots animation
-function showTypingIndicator() {
-  if (typingBubble) return;
-
-  typingBubble = document.createElement("div");
-  typingBubble.classList.add("message", "ai");
-  typingBubble.innerHTML = `
-    <div class="bubble ai">
-      <span class="dot">.</span>
-      <span class="dot">.</span>
-      <span class="dot">.</span>
-    </div>
-  `;
-  chatWindow.appendChild(typingBubble);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
-}
-
-function removeTypingIndicator() {
-  if (typingBubble) {
-    typingBubble.remove();
-    typingBubble = null;
-  }
-}
-
 async function fetchMessages() {
   refreshNotice.style.display = "inline-block";
   chatWindow.classList.add("loading");
@@ -61,7 +36,6 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
-      chatWindow.scrollTop = chatWindow.scrollHeight;
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -69,7 +43,7 @@ async function fetchMessages() {
     setTimeout(() => {
       refreshNotice.style.display = "none";
       chatWindow.classList.remove("loading");
-    }, 1000);
+    }, 500);
   }
 }
 
@@ -80,6 +54,7 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
+  // 1. Get message count before sending
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
@@ -88,19 +63,36 @@ chatForm.addEventListener("submit", async function (e) {
     console.error("Error fetching message count:", err);
   }
 
-  // Send user message
+  // 2. Show user's message immediately
+  createMessage(userMsg, "user", new Date().toISOString());
+
+  // 3. Send user's message
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  showTypingIndicator(); // 👈 Show typing dots while waiting
+  // 4. Show typing dots
+  const dots = document.createElement("div");
+  dots.className = "message ai";
+  dots.id = "typing";
+  dots.innerHTML = `
+    <div class="bubble ai">...</div>
+    <div class="timestamp">${new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}</div>
+  `;
+  chatWindow.appendChild(dots);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  // 5. Wait for AI to respond, then update UI
   waitForNewMessages();
 });
 
 async function waitForNewMessages() {
-  let retries = 12;
+  let retries = 15;
 
   while (retries-- > 0) {
     try {
@@ -108,8 +100,11 @@ async function waitForNewMessages() {
       const data = await res.json();
 
       if (data.messages.length > lastMessageCount) {
-        removeTypingIndicator(); // 👈 Remove typing dots
-        fetchMessages(); // Refresh full message list
+        // Remove typing dots
+        const typing = document.getElementById("typing");
+        if (typing) typing.remove();
+
+        fetchMessages(); // Update chat
         return;
       }
     } catch (err) {
@@ -119,7 +114,6 @@ async function waitForNewMessages() {
     await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1s
   }
 
-  removeTypingIndicator();
   console.warn("AI response not detected in time");
 }
 
