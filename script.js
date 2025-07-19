@@ -21,7 +21,7 @@ function createMessage(text, sender, time) {
   `;
   chatWindow.appendChild(msg);
 
-  // ✅ Smooth scroll to new message
+  // ✅ Smooth scroll to last message only
   msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
@@ -38,9 +38,6 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
-
-      // ✅ Smooth scroll to bottom after loading
-      chatWindow.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -59,6 +56,9 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
+  // Show user's message immediately
+  createMessage(userMsg, "user", new Date().toISOString());
+
   // Send user's message
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
@@ -66,10 +66,9 @@ chatForm.addEventListener("submit", async function (e) {
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Wait briefly
+  // Wait 1s before checking message count
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  // Get message count after user message
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
@@ -78,7 +77,7 @@ chatForm.addEventListener("submit", async function (e) {
     console.error("Error fetching message count:", err);
   }
 
-  // Wait until AI response is available
+  // Start checking for AI reply
   waitForNewMessages();
 });
 
@@ -91,7 +90,9 @@ async function waitForNewMessages() {
       const data = await res.json();
 
       if (data.messages.length > lastMessageCount) {
-        fetchMessages(); // Refresh UI
+        // ✅ Extra delay to ensure AI reply is saved
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        await fetchMessages();
         return;
       }
     } catch (err) {
@@ -106,5 +107,5 @@ async function waitForNewMessages() {
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Initial fetch
+// Initial fetch on page load
 fetchMessages();
