@@ -6,14 +6,6 @@ const refreshNotice = document.getElementById("refreshNotice");
 
 let lastMessageCount = 0;
 
-// Scroll smoothly to latest message
-function scrollToBottom() {
-  chatWindow.scrollTo({
-    top: chatWindow.scrollHeight,
-    behavior: "smooth",
-  });
-}
-
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
@@ -28,9 +20,10 @@ function createMessage(text, sender, time) {
     <div class="timestamp">${timestamp}</div>
   `;
   chatWindow.appendChild(msg);
+  msg.scrollIntoView({ behavior: "smooth" });
 }
 
-async function fetchMessages(scrollToEnd = true) {
+async function fetchMessages() {
   refreshNotice.style.display = "inline-block";
   chatWindow.classList.add("loading");
 
@@ -43,7 +36,6 @@ async function fetchMessages(scrollToEnd = true) {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
-      if (scrollToEnd) scrollToBottom();
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -62,57 +54,70 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Add user message instantly
+  // Optimistically show user message
   const now = new Date().toISOString();
   createMessage(userMsg, "user", now);
-  scrollToBottom();
 
-  // Send to backend
+  // Send user's message
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Save current message count
+  // Get message count after user message
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
     lastMessageCount = data.messages.length;
   } catch (err) {
-    console.error("Could not fetch message count", err);
+    console.error("Error fetching message count:", err);
   }
 
-  // Wait for AI to respond
-  waitForNewMessages();
+  // Show typing indicator
+  const typingMsg = document.createElement("div");
+  typingMsg.classList.add("message", "bot");
+  typingMsg.innerHTML = `<div class="bubble bot">...</div>`;
+  chatWindow.appendChild(typingMsg);
+  typingMsg.scrollIntoView({ behavior: "smooth" });
+
+  // Wait until AI response is available
+  await waitForNewMessages(typingMsg);
 });
 
-async function waitForNewMessages() {
-  let retries = 15;
+async function waitForNewMessages(typingElement) {
+  let retries = 20;
 
   while (retries-- > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
       if (data.messages.length > lastMessageCount) {
+        // Remove typing indicator
+        typingElement.remove();
+
+        // Add only the new AI message(s)
         const newMessages = data.messages.slice(lastMessageCount);
         newMessages.forEach((msg) =>
           createMessage(msg.message, msg.user_type, msg.datetime)
         );
-        scrollToBottom();
+
+        lastMessageCount = data.messages.length;
         return;
       }
     } catch (err) {
-      console.error("Waiting for AI failed", err);
+      console.error("Waiting for AI reply failed:", err);
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  console.warn("AI reply not detected after timeout.");
+  console.warn("AI response not detected in time");
+  typingElement.remove();
 }
 
-refreshBtn.addEventListener("click", () => fetchMessages(true));
+refreshBtn.addEventListener("click", fetchMessages);
 
-// On load
-fetchMessages(true);
+// Initial fetch on load
+fetchMessages();
