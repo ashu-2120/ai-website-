@@ -58,9 +58,13 @@ chatForm.addEventListener("submit", async function (e) {
   const userMsg = chatInput.value.trim();
   if (!userMsg) return;
 
+  const now = new Date();
   chatInput.value = "";
 
-  // Get current message count
+  // 👉 1. Show user message immediately
+  createMessage(userMsg, "user", now, true);
+
+  // 👉 2. Get current message count
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
@@ -69,17 +73,17 @@ chatForm.addEventListener("submit", async function (e) {
     console.error("Error fetching message count:", err);
   }
 
-  // Send user message
+  // 👉 3. Send user message to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Show typing dots
+  // 👉 4. Show typing dots
   showTypingIndicator();
 
-  // Wait for AI to reply
+  // 👉 5. Wait for new AI reply
   waitForNewAIMessage();
 });
 
@@ -118,8 +122,10 @@ async function waitForNewAIMessage() {
         removeTypingIndicator();
 
         newMessages.forEach((msg, index) => {
-          const scroll = index === newMessages.length - 1;
-          createMessage(msg.message, msg.user_type, msg.datetime, scroll);
+          // Only show AI messages, since user message was shown earlier
+          if (msg.user_type === "ai") {
+            createMessage(msg.message, msg.user_type, msg.datetime, true);
+          }
         });
 
         lastMessageCount = data.messages.length;
