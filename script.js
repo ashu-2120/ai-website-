@@ -4,6 +4,7 @@ const chatInput = document.getElementById("chatInput");
 const refreshBtn = document.getElementById("refreshBtn");
 const refreshNotice = document.getElementById("refreshNotice");
 
+let lastMessageCount = 0;
 
 function createMessage(text, sender, time) {
  const msg = document.createElement("div");
@@ -53,8 +54,6 @@ async function fetchMessages() {
 }
 
 
-let lastMessageCount = 0;
-
 chatForm.addEventListener("submit", async function (e) {
   e.preventDefault();
   const userMsg = chatInput.value.trim();
@@ -62,10 +61,14 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Get current number of messages
-  const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
-  const data = await res.json();
-  lastMessageCount = data.messages.length;
+  // Get current number of messages before sending
+  try {
+    const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+    const data = await res.json();
+    lastMessageCount = data.messages.length;
+  } catch (err) {
+    console.error("Error fetching message count:", err);
+  }
 
   // Send the user's message
   await fetch("https://ai-website-1gto.onrender.com/send", {
@@ -74,26 +77,32 @@ chatForm.addEventListener("submit", async function (e) {
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Wait for the AI reply
+  // Wait until AI response is available
   waitForNewMessages();
 });
+
 async function waitForNewMessages() {
   let retries = 10;
 
   while (retries-- > 0) {
-    const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
-    const data = await res.json();
+    try {
+      const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+      const data = await res.json();
 
-    if (data.messages.length > lastMessageCount) {
-      fetchMessages(); // Refresh UI with AI reply
-      return;
+      if (data.messages.length > lastMessageCount) {
+        fetchMessages(); // Refresh UI
+        return;
+      }
+    } catch (err) {
+      console.error("Waiting for AI reply failed:", err);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1 sec
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1s
   }
 
   console.warn("AI response not detected in time");
 }
+
 
 
 
