@@ -43,7 +43,7 @@ async function fetchMessages() {
     setTimeout(() => {
       refreshNotice.style.display = "none";
       chatWindow.classList.remove("loading");
-    }, 500);
+    }, 1000);
   }
 }
 
@@ -52,36 +52,40 @@ chatForm.addEventListener("submit", async function (e) {
   const userMsg = chatInput.value.trim();
   if (!userMsg) return;
 
-  // Show user message immediately
-  createMessage(userMsg, "user", new Date().toISOString());
   chatInput.value = "";
 
-  // Send user message
+  // Display user message instantly
+  createMessage(userMsg, "user", new Date().toISOString());
+
+  // Send user's message
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: userMsg }),
+    body: JSON.stringify({ message: userMsg })
   });
 
-  // Get current message count
-  const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
-  const data = await res.json();
-  lastMessageCount = data.messages.length;
-
-  // Show typing indicator
-  const typing = document.createElement("div");
-  typing.classList.add("message", "ai");
-  typing.setAttribute("id", "typingIndicator");
-  typing.innerHTML = `<div class="bubble ai">...</div>`;
-  chatWindow.appendChild(typing);
+  // Show typing dots
+  const typingMsg = document.createElement("div");
+  typingMsg.classList.add("message", "ai");
+  typingMsg.innerHTML = `<div class="bubble ai">...</div>`;
+  typingMsg.setAttribute("id", "typingIndicator");
+  chatWindow.appendChild(typingMsg);
   chatWindow.scrollTo({ top: chatWindow.scrollHeight, behavior: "smooth" });
 
-  // Wait for AI response
-  await waitForNewMessages();
+  // Store current message count
+  try {
+    const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
+    const data = await res.json();
+    lastMessageCount = data.messages.length;
+  } catch (err) {
+    console.error("Error fetching message count:", err);
+  }
+
+  waitForNewMessages();
 });
 
 async function waitForNewMessages() {
-  let retries = 15;
+  let retries = 10;
 
   while (retries-- > 0) {
     try {
@@ -94,17 +98,16 @@ async function waitForNewMessages() {
         return;
       }
     } catch (err) {
-      console.error("Polling failed:", err);
+      console.error("Waiting for AI reply failed:", err);
     }
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  console.warn("AI response timeout");
+  console.warn("AI response not detected in time");
   document.getElementById("typingIndicator")?.remove();
 }
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Initial fetch on load
 fetchMessages();
