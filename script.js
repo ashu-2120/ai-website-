@@ -69,7 +69,7 @@ chatForm.addEventListener("submit", async function (e) {
 
  setTimeout(() => {
    refreshBtn.click();
- }, 3000); // 1s delay
+ }, 3500); // 3.5s delay
 });
 
 
