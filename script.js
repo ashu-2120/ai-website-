@@ -4,14 +4,15 @@ const chatInput = document.getElementById("chatInput");
 const refreshBtn = document.getElementById("refreshBtn");
 const refreshNotice = document.getElementById("refreshNotice");
 
-let lastMessageCount = 0;
-
-// Typing indicator element
+// Typing indicator setup
 let typingIndicator = document.createElement("div");
 typingIndicator.classList.add("message", "ai");
 typingIndicator.innerHTML = `<div class="bubble ai">...</div><div class="timestamp">typing...</div>`;
 
-// Utility to scroll smoothly
+// Track last AI message time to detect new replies
+let lastAiTimestamp = null;
+
+// Smooth scroll
 function scrollToBottomSmooth() {
   chatWindow.scrollTo({
     top: chatWindow.scrollHeight,
@@ -19,6 +20,7 @@ function scrollToBottomSmooth() {
   });
 }
 
+// Render message
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
@@ -36,6 +38,7 @@ function createMessage(text, sender, time) {
   scrollToBottomSmooth();
 }
 
+// Full fetch and render
 async function fetchMessages() {
   refreshNotice.style.display = "inline-block";
   chatWindow.classList.add("loading");
@@ -46,9 +49,12 @@ async function fetchMessages() {
 
     if (data.messages) {
       chatWindow.innerHTML = "";
-      data.messages.forEach((msg) =>
-        createMessage(msg.message, msg.user_type, msg.datetime)
-      );
+      data.messages.forEach((msg) => {
+        createMessage(msg.message, msg.user_type, msg.datetime);
+        if (msg.user_type === "ai") {
+          lastAiTimestamp = msg.datetime; // update last AI reply seen
+        }
+      });
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -60,67 +66,65 @@ async function fetchMessages() {
   }
 }
 
+// Handle user submit
 chatForm.addEventListener("submit", async function (e) {
   e.preventDefault();
   const userMsg = chatInput.value.trim();
   if (!userMsg) return;
   chatInput.value = "";
 
-  // 1. Show user's message immediately
+  // Show user's message immediately
   createMessage(userMsg, "user", new Date());
 
-  // 2. Add typing indicator
+  // Add typing indicator
   chatWindow.appendChild(typingIndicator);
   scrollToBottomSmooth();
 
-  // 3. Send user message
+  // Save current last AI reply timestamp
+  const lastSeenAiTime = lastAiTimestamp;
+
+  // Send message to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // 4. Get current message count to detect AI response later
-  let currentCount = 0;
-  try {
-    const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
-    const data = await res.json();
-    currentCount = data.messages.length;
-  } catch (err) {
-    console.error("Error counting messages:", err);
-  }
-
-  // 5. Poll until new message appears (AI reply)
-  let retries = 12;
-  let foundNew = false;
+  // Wait for new AI reply
+  let retries = 15;
+  let aiReplied = false;
 
   while (retries-- > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1500)); // Wait 1.5 sec
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
-      if (data.messages.length > currentCount) {
-        foundNew = true;
+      const newAiMsg = data.messages.find(
+        (msg) => msg.user_type === "ai" && msg.datetime !== lastSeenAiTime
+      );
+
+      if (newAiMsg) {
+        aiReplied = true;
         chatWindow.removeChild(typingIndicator);
-        chatWindow.innerHTML = ""; // clear and reload all
-        data.messages.forEach((msg) =>
-          createMessage(msg.message, msg.user_type, msg.datetime)
-        );
+        chatWindow.innerHTML = "";
+        data.messages.forEach((msg) => createMessage(msg.message, msg.user_type, msg.datetime));
+        lastAiTimestamp = newAiMsg.datetime;
         break;
       }
     } catch (err) {
-      console.error("Error polling for AI reply:", err);
+      console.error("Polling for AI reply failed:", err);
     }
   }
 
-  if (!foundNew) {
-    console.warn("AI reply not received in time.");
+  if (!aiReplied) {
+    console.warn("AI reply not received in time");
     chatWindow.removeChild(typingIndicator);
   }
 });
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Initial load
+// Load messages on page load
 fetchMessages();
