@@ -8,7 +8,7 @@ let lastMessageCount = 0;
 
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
-  msg.classList.add("message", sender.trim()); // ✅ Trim to avoid space error
+  msg.classList.add("message", sender.trim());
 
   const timestamp = new Date(time).toLocaleTimeString([], {
     hour: "2-digit",
@@ -20,7 +20,9 @@ function createMessage(text, sender, time) {
     <div class="timestamp">${timestamp}</div>
   `;
   chatWindow.appendChild(msg);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  // ✅ Smooth scroll to new message
+  msg.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
 async function fetchMessages() {
@@ -36,7 +38,9 @@ async function fetchMessages() {
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
-      chatWindow.scrollTop = chatWindow.scrollHeight;
+
+      // ✅ Smooth scroll to bottom after loading
+      chatWindow.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -62,7 +66,7 @@ chatForm.addEventListener("submit", async function (e) {
     body: JSON.stringify({ message: userMsg }),
   });
 
-  // Wait for the message to be saved
+  // Wait briefly
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
   // Get message count after user message
@@ -94,7 +98,7 @@ async function waitForNewMessages() {
       console.error("Waiting for AI reply failed:", err);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1s
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   console.warn("AI response not detected in time");
@@ -102,5 +106,5 @@ async function waitForNewMessages() {
 
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Initial fetch on load
+// Initial fetch
 fetchMessages();
