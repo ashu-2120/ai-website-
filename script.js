@@ -5,8 +5,9 @@ const refreshBtn = document.getElementById("refreshBtn");
 const refreshNotice = document.getElementById("refreshNotice");
 
 let lastMessageCount = 0;
-let typingIndicator;
+let typingIndicator = null;
 
+// Scroll to bottom
 function scrollToBottomSmooth() {
   chatWindow.scrollTo({
     top: chatWindow.scrollHeight,
@@ -14,6 +15,7 @@ function scrollToBottomSmooth() {
   });
 }
 
+// Create and show a message
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
@@ -31,6 +33,7 @@ function createMessage(text, sender, time) {
   scrollToBottomSmooth();
 }
 
+// Typing Indicator
 function showTypingIndicator() {
   typingIndicator = document.createElement("div");
   typingIndicator.classList.add("message", "ai");
@@ -52,6 +55,7 @@ function removeTypingIndicator() {
   }
 }
 
+// Fetch and display all messages
 async function fetchMessages() {
   refreshNotice.style.display = "inline-block";
   chatWindow.classList.add("loading");
@@ -77,6 +81,7 @@ async function fetchMessages() {
   }
 }
 
+// Send user message and wait for AI
 chatForm.addEventListener("submit", async function (e) {
   e.preventDefault();
   const userMsg = chatInput.value.trim();
@@ -88,6 +93,7 @@ chatForm.addEventListener("submit", async function (e) {
 
   showTypingIndicator();
 
+  // Send user message to backend
   try {
     await fetch("https://ai-website-1gto.onrender.com/send", {
       method: "POST",
@@ -95,24 +101,28 @@ chatForm.addEventListener("submit", async function (e) {
       body: JSON.stringify({ message: userMsg }),
     });
   } catch (err) {
-    console.error("Failed to send message", err);
+    console.error("Send error", err);
     removeTypingIndicator();
     return;
   }
 
-  waitForAIResponse();
+  // Wait ~2.5 seconds to allow n8n + sheet to process
+  await new Promise((r) => setTimeout(r, 2500));
+  await waitForAIResponse();
 });
 
 async function waitForAIResponse() {
-  let retries = 10;
+  let retries = 6;
+  let aiReceived = false;
 
   while (retries-- > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((r) => setTimeout(r, 1500));
+
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
-      if (data.messages && data.messages.length > lastMessageCount) {
+      if (data.messages.length > lastMessageCount) {
         const newMessages = data.messages.slice(lastMessageCount);
         lastMessageCount = data.messages.length;
 
@@ -122,16 +132,22 @@ async function waitForAIResponse() {
           createMessage(msg.message, msg.user_type, msg.datetime)
         );
 
-        return;
+        aiReceived = true;
+        break;
       }
     } catch (err) {
-      console.error("Polling failed", err);
+      console.error("Error while polling AI reply:", err);
     }
   }
 
-  console.warn("AI did not respond in time.");
-  removeTypingIndicator();
+  if (!aiReceived) {
+    console.warn("AI did not respond in time.");
+    removeTypingIndicator();
+  }
 }
 
+// Manual refresh
 refreshBtn.addEventListener("click", fetchMessages);
+
+// Auto load on page open
 window.addEventListener("load", fetchMessages);
