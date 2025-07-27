@@ -4,7 +4,7 @@ const chatInput = document.getElementById("chatInput");
 const refreshBtn = document.getElementById("refreshBtn");
 
 let lastMessageCount = 0;
-let typingIndicator;
+let typingIndicator = null;
 
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
@@ -24,6 +24,7 @@ function createMessage(text, sender, time) {
 }
 
 function showTypingDots() {
+  removeTypingDots(); // avoid duplicates
   typingIndicator = document.createElement("div");
   typingIndicator.classList.add("message", "ai");
   typingIndicator.innerHTML = `
@@ -46,7 +47,7 @@ async function fetchMessages() {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
 
-    if (data.messages) {
+    if (data.messages && Array.isArray(data.messages)) {
       chatWindow.innerHTML = "";
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
@@ -69,7 +70,7 @@ chatForm.addEventListener("submit", async function (e) {
   const timestamp = new Date().toISOString();
   createMessage(userMsg, "user", timestamp);
 
-  // Send to backend
+  // Send message to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -78,12 +79,12 @@ chatForm.addEventListener("submit", async function (e) {
 
   showTypingDots();
 
-  // Wait for AI reply
-  waitForAIResponse();
+  // Begin polling for AI response
+  await waitForAIResponse();
 });
 
 async function waitForAIResponse() {
-  let retries = 15;
+  let retries = 20;
 
   while (retries-- > 0) {
     try {
@@ -92,30 +93,30 @@ async function waitForAIResponse() {
 
       if (data.messages.length > lastMessageCount) {
         const newMessages = data.messages.slice(lastMessageCount);
-        lastMessageCount = data.messages.length;
 
-        removeTypingDots();
-
-        // Show only new AI messages before full refresh
         newMessages.forEach((msg) => {
           if (msg.user_type === "ai") {
+            removeTypingDots();
             createMessage(msg.message, msg.user_type, msg.datetime);
           }
         });
 
-        // After short delay, refresh full chat
+        lastMessageCount = data.messages.length;
+
+        // After showing new message, refresh full chat to be safe
         setTimeout(fetchMessages, 1000);
         return;
       }
     } catch (err) {
-      console.error("Waiting for AI reply failed:", err);
+      console.error("Error while waiting for AI:", err);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
-  console.warn("AI reply not received in time");
+  console.warn("AI did not reply within expected time.");
   removeTypingDots();
+  fetchMessages(); // force refresh to avoid message loss
 }
 
 function scrollToBottomSmooth() {
@@ -126,6 +127,4 @@ function scrollToBottomSmooth() {
 }
 
 refreshBtn.addEventListener("click", fetchMessages);
-
-// Initial fetch
 window.addEventListener("load", fetchMessages);
