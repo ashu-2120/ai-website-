@@ -15,10 +15,11 @@ function createMessage(text, sender, time) {
     minute: "2-digit",
   });
 
-  msg.innerHTML = 
+  // ✅ FIXED: Use backticks for template literal
+  msg.innerHTML = `
     <div class="bubble ${sender}">${text}</div>
     <div class="timestamp">${timestamp}</div>
-  ;
+  `;
   chatWindow.appendChild(msg);
   scrollToBottomSmooth();
 }
@@ -26,10 +27,15 @@ function createMessage(text, sender, time) {
 function showTypingDots() {
   typingIndicator = document.createElement("div");
   typingIndicator.classList.add("message", "ai");
-  typingIndicator.innerHTML = 
+
+  // ✅ FIXED: Use backticks for template literal
+  typingIndicator.innerHTML = `
     <div class="bubble ai">...</div>
-    <div class="timestamp">${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-  ;
+    <div class="timestamp">${new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}</div>
+  `;
   chatWindow.appendChild(typingIndicator);
   scrollToBottomSmooth();
 }
@@ -65,11 +71,9 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Show user message instantly
   const timestamp = new Date().toISOString();
   createMessage(userMsg, "user", timestamp);
 
-  // Send to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -78,7 +82,6 @@ chatForm.addEventListener("submit", async function (e) {
 
   showTypingDots();
 
-  // Wait for AI reply
   waitForAIResponse();
 });
 
@@ -96,14 +99,12 @@ async function waitForAIResponse() {
 
         removeTypingDots();
 
-        // Show only new AI messages before full refresh
         newMessages.forEach((msg) => {
           if (msg.user_type === "ai") {
             createMessage(msg.message, msg.user_type, msg.datetime);
           }
         });
 
-        // After short delay, refresh full chat
         setTimeout(fetchMessages, 1000);
         return;
       }
@@ -126,6 +127,4 @@ function scrollToBottomSmooth() {
 }
 
 refreshBtn.addEventListener("click", fetchMessages);
-
-// Initial fetch
 window.addEventListener("load", fetchMessages);
