@@ -15,27 +15,26 @@ function createMessage(text, sender, time) {
     minute: "2-digit",
   });
 
-  msg.innerHTML = 
+  msg.innerHTML = `
     <div class="bubble ${sender}">${text}</div>
     <div class="timestamp">${timestamp}</div>
-  ;
+  `;
   chatWindow.appendChild(msg);
   scrollToBottomSmooth();
 
-  // Update last timestamp if newer
   if (!lastTimestamp || new Date(time) > new Date(lastTimestamp)) {
     lastTimestamp = time;
   }
 }
 
 function showTypingDots() {
-  removeTypingDots(); // avoid multiple
+  removeTypingDots();
   typingIndicator = document.createElement("div");
   typingIndicator.classList.add("message", "ai");
-  typingIndicator.innerHTML = 
+  typingIndicator.innerHTML = `
     <div class="bubble ai">...</div>
     <div class="timestamp">${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-  ;
+  `;
   chatWindow.appendChild(typingIndicator);
   scrollToBottomSmooth();
 }
@@ -85,22 +84,23 @@ chatForm.addEventListener("submit", async function (e) {
 });
 
 async function waitForAIResponse() {
-  let retries = 20;
+  const maxTries = 20;
 
-  while (retries-- > 0) {
+  for (let i = 0; i < maxTries; i++) {
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
       if (data.messages && Array.isArray(data.messages)) {
         const newAI = data.messages.find(
-          (msg) => msg.user_type === "ai" && new Date(msg.datetime) > new Date(lastTimestamp)
+          (msg) =>
+            msg.user_type === "ai" &&
+            new Date(msg.datetime) > new Date(lastTimestamp)
         );
 
         if (newAI) {
           removeTypingDots();
           createMessage(newAI.message, "ai", newAI.datetime);
-          setTimeout(fetchMessages, 500); // refresh chat after slight delay
           return;
         }
       }
@@ -108,7 +108,10 @@ async function waitForAIResponse() {
       console.error("Polling AI reply failed:", err);
     }
 
-    await new Promise((r) => setTimeout(r, 1000));
+    // Faster polling initially (first 6 seconds), slower afterward
+    await new Promise((resolve) =>
+      setTimeout(resolve, i < 10 ? 300 : 1000)
+    );
   }
 
   console.warn("AI did not reply in time.");
