@@ -95,7 +95,7 @@ chatForm.addEventListener("submit", async (e) => {
   showTyping();
 
   // 4. Wait ~2.5s to allow AI reply to generate and save to sheet
-  await new Promise((res) => setTimeout(res, 2500));
+  await new Promise((res) => setTimeout(res, 7500));
 
   // 5. Poll for new AI reply
   let retries = 6;
