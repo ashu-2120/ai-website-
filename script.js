@@ -3,7 +3,7 @@ const chatForm = document.getElementById("chatForm");
 const chatInput = document.getElementById("chatInput");
 const refreshBtn = document.getElementById("refreshBtn");
 
-let lastMessageCount = 0;
+let lastTimestamp = null;
 let typingIndicator = null;
 
 function createMessage(text, sender, time) {
@@ -21,10 +21,15 @@ function createMessage(text, sender, time) {
   `;
   chatWindow.appendChild(msg);
   scrollToBottomSmooth();
+
+  // Update last timestamp if newer
+  if (!lastTimestamp || new Date(time) > new Date(lastTimestamp)) {
+    lastTimestamp = time;
+  }
 }
 
 function showTypingDots() {
-  removeTypingDots(); // avoid duplicates
+  removeTypingDots(); // avoid multiple
   typingIndicator = document.createElement("div");
   typingIndicator.classList.add("message", "ai");
   typingIndicator.innerHTML = `
@@ -49,10 +54,9 @@ async function fetchMessages() {
 
     if (data.messages && Array.isArray(data.messages)) {
       chatWindow.innerHTML = "";
-      data.messages.forEach((msg) =>
-        createMessage(msg.message, msg.user_type, msg.datetime)
-      );
-      lastMessageCount = data.messages.length;
+      data.messages.forEach((msg) => {
+        createMessage(msg.message, msg.user_type, msg.datetime);
+      });
     }
   } catch (err) {
     console.error("Fetch failed", err);
@@ -66,11 +70,9 @@ chatForm.addEventListener("submit", async function (e) {
 
   chatInput.value = "";
 
-  // Show user message instantly
   const timestamp = new Date().toISOString();
   createMessage(userMsg, "user", timestamp);
 
-  // Send message to backend
   await fetch("https://ai-website-1gto.onrender.com/send", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -79,7 +81,6 @@ chatForm.addEventListener("submit", async function (e) {
 
   showTypingDots();
 
-  // Begin polling for AI response
   await waitForAIResponse();
 });
 
@@ -91,32 +92,28 @@ async function waitForAIResponse() {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
-      if (data.messages.length > lastMessageCount) {
-        const newMessages = data.messages.slice(lastMessageCount);
+      if (data.messages && Array.isArray(data.messages)) {
+        const newAI = data.messages.find(
+          (msg) => msg.user_type === "ai" && new Date(msg.datetime) > new Date(lastTimestamp)
+        );
 
-        newMessages.forEach((msg) => {
-          if (msg.user_type === "ai") {
-            removeTypingDots();
-            createMessage(msg.message, msg.user_type, msg.datetime);
-          }
-        });
-
-        lastMessageCount = data.messages.length;
-
-        // After showing new message, refresh full chat to be safe
-        setTimeout(fetchMessages, 1000);
-        return;
+        if (newAI) {
+          removeTypingDots();
+          createMessage(newAI.message, "ai", newAI.datetime);
+          setTimeout(fetchMessages, 500); // refresh chat after slight delay
+          return;
+        }
       }
     } catch (err) {
-      console.error("Error while waiting for AI:", err);
+      console.error("Polling AI reply failed:", err);
     }
 
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  console.warn("AI did not reply within expected time.");
+  console.warn("AI did not reply in time.");
   removeTypingDots();
-  fetchMessages(); // force refresh to avoid message loss
+  fetchMessages(); // fallback refresh
 }
 
 function scrollToBottomSmooth() {
