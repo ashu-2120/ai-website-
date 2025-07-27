@@ -22,13 +22,14 @@ function createMessage(text, sender, time) {
   chatWindow.appendChild(msg);
   scrollToBottomSmooth();
 
+  // Update last timestamp if newer
   if (!lastTimestamp || new Date(time) > new Date(lastTimestamp)) {
     lastTimestamp = time;
   }
 }
 
 function showTypingDots() {
-  removeTypingDots();
+  removeTypingDots(); // avoid multiple
   typingIndicator = document.createElement("div");
   typingIndicator.classList.add("message", "ai");
   typingIndicator.innerHTML = `
@@ -84,23 +85,22 @@ chatForm.addEventListener("submit", async function (e) {
 });
 
 async function waitForAIResponse() {
-  const maxTries = 20;
+  let retries = 20;
 
-  for (let i = 0; i < maxTries; i++) {
+  while (retries-- > 0) {
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
       if (data.messages && Array.isArray(data.messages)) {
         const newAI = data.messages.find(
-          (msg) =>
-            msg.user_type === "ai" &&
-            new Date(msg.datetime) > new Date(lastTimestamp)
+          (msg) => msg.user_type === "ai" && new Date(msg.datetime) > new Date(lastTimestamp)
         );
 
         if (newAI) {
           removeTypingDots();
           createMessage(newAI.message, "ai", newAI.datetime);
+          setTimeout(fetchMessages, 500); // refresh chat after slight delay
           return;
         }
       }
@@ -108,10 +108,7 @@ async function waitForAIResponse() {
       console.error("Polling AI reply failed:", err);
     }
 
-    // Faster polling initially (first 6 seconds), slower afterward
-    await new Promise((resolve) =>
-      setTimeout(resolve, i < 10 ? 300 : 1000)
-    );
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   console.warn("AI did not reply in time.");
