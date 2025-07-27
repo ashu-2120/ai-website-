@@ -5,8 +5,14 @@ const refreshBtn = document.getElementById("refreshBtn");
 
 let lastTimestamp = null;
 let typingIndicator = null;
+let renderedTimestamps = new Set();
 
 function createMessage(text, sender, time) {
+  const uniqueKey = sender + time;
+  if (renderedTimestamps.has(uniqueKey)) return;
+
+  renderedTimestamps.add(uniqueKey);
+
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
 
@@ -22,7 +28,6 @@ function createMessage(text, sender, time) {
   chatWindow.appendChild(msg);
   scrollToBottomSmooth();
 
-  // Update last timestamp if newer
   if (!lastTimestamp || new Date(time) > new Date(lastTimestamp)) {
     lastTimestamp = time;
   }
@@ -54,6 +59,8 @@ async function fetchMessages() {
 
     if (data.messages && Array.isArray(data.messages)) {
       chatWindow.innerHTML = "";
+      renderedTimestamps.clear();
+
       data.messages.forEach((msg) => {
         createMessage(msg.message, msg.user_type, msg.datetime);
       });
@@ -94,14 +101,15 @@ async function waitForAIResponse() {
 
       if (data.messages && Array.isArray(data.messages)) {
         const newAI = data.messages.find(
-          (msg) => msg.user_type === "ai" && new Date(msg.datetime) > new Date(lastTimestamp)
+          (msg) =>
+            msg.user_type === "ai" &&
+            new Date(msg.datetime) > new Date(lastTimestamp)
         );
 
         if (newAI) {
           removeTypingDots();
           createMessage(newAI.message, "ai", newAI.datetime);
-          setTimeout(fetchMessages, 500); // refresh chat after slight delay
-          return;
+          return; // No need to refresh again
         }
       }
     } catch (err) {
