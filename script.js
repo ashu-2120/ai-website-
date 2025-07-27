@@ -46,8 +46,19 @@ function removeTyping() {
   if (typing) typing.remove();
 }
 
+// Show refresh notice
+function showRefreshNotice() {
+  refreshNotice.style.display = "inline-block";
+}
+
+// Hide refresh notice
+function hideRefreshNotice() {
+  refreshNotice.style.display = "none";
+}
+
 // Fetch all messages and update UI
 async function fetchMessages(fullRefresh = true) {
+  showRefreshNotice();
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
@@ -64,6 +75,8 @@ async function fetchMessages(fullRefresh = true) {
     }
   } catch (err) {
     console.error("Fetch error:", err);
+  } finally {
+    setTimeout(() => hideRefreshNotice(), 1000); // delay hide for smooth UI
   }
 }
 
@@ -79,7 +92,10 @@ chatForm.addEventListener("submit", async (e) => {
   createMessage(userMsg, "user", timestamp);
   scrollToBottomSmooth();
 
-  // 2. Send to backend
+  // 2. Clear input box
+  chatInput.value = "";
+
+  // 3. Send to backend
   try {
     await fetch("https://ai-website-1gto.onrender.com/send", {
       method: "POST",
@@ -91,13 +107,13 @@ chatForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  // 3. Show typing indicator
+  // 4. Show typing indicator
   showTyping();
 
-  // 4. Wait ~2.5s to allow AI reply to generate and save to sheet
-  await new Promise((res) => setTimeout(res, 7500));
+  // 5. Wait to allow AI reply to save (~10s based on sheet delay)
+  await new Promise((res) => setTimeout(res, 10000));
 
-  // 5. Poll for new AI reply
+  // 6. Poll for AI reply
   let retries = 6;
   let foundNew = false;
 
@@ -109,7 +125,7 @@ chatForm.addEventListener("submit", async (e) => {
 
       if (data.messages.length > lastMessageCount) {
         removeTyping();
-        await fetchMessages(); // Refresh whole chat after AI reply
+        await fetchMessages(); // auto refresh after AI reply
         foundNew = true;
         break;
       }
@@ -125,7 +141,9 @@ chatForm.addEventListener("submit", async (e) => {
 });
 
 // Manual refresh
-refreshBtn.addEventListener("click", fetchMessages);
+refreshBtn.addEventListener("click", () => {
+  fetchMessages();
+});
 
 // Initial load
 window.addEventListener("load", fetchMessages);
