@@ -5,9 +5,8 @@ const refreshBtn = document.getElementById("refreshBtn");
 const refreshNotice = document.getElementById("refreshNotice");
 
 let lastMessageCount = 0;
-let typingIndicator = null;
 
-// Scroll to bottom
+// Scroll smoothly
 function scrollToBottomSmooth() {
   chatWindow.scrollTo({
     top: chatWindow.scrollHeight,
@@ -15,7 +14,7 @@ function scrollToBottomSmooth() {
   });
 }
 
-// Create and show a message
+// Create a message bubble
 function createMessage(text, sender, time) {
   const msg = document.createElement("div");
   msg.classList.add("message", sender.trim());
@@ -30,70 +29,57 @@ function createMessage(text, sender, time) {
     <div class="timestamp">${timestamp}</div>
   `;
   chatWindow.appendChild(msg);
+}
+
+// Show typing indicator
+function showTyping() {
+  const typing = document.createElement("div");
+  typing.classList.add("message", "ai", "typing-indicator");
+  typing.innerHTML = `<div class="bubble ai">...</div><div class="timestamp">typing...</div>`;
+  chatWindow.appendChild(typing);
   scrollToBottomSmooth();
 }
 
-// Typing Indicator
-function showTypingIndicator() {
-  typingIndicator = document.createElement("div");
-  typingIndicator.classList.add("message", "ai");
-  typingIndicator.innerHTML = `
-    <div class="bubble ai">...</div>
-    <div class="timestamp">${new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}</div>
-  `;
-  chatWindow.appendChild(typingIndicator);
-  scrollToBottomSmooth();
+// Remove typing indicator
+function removeTyping() {
+  const typing = document.querySelector(".typing-indicator");
+  if (typing) typing.remove();
 }
 
-function removeTypingIndicator() {
-  if (typingIndicator && typingIndicator.parentNode) {
-    typingIndicator.remove();
-    typingIndicator = null;
-  }
-}
-
-// Fetch and display all messages
-async function fetchMessages() {
-  refreshNotice.style.display = "inline-block";
-  chatWindow.classList.add("loading");
-
+// Fetch all messages and update UI
+async function fetchMessages(fullRefresh = true) {
   try {
     const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
     const data = await res.json();
 
-    if (data.messages) {
-      chatWindow.innerHTML = "";
+    if (data.messages && Array.isArray(data.messages)) {
+      if (fullRefresh) chatWindow.innerHTML = "";
+
       data.messages.forEach((msg) =>
         createMessage(msg.message, msg.user_type, msg.datetime)
       );
+
+      scrollToBottomSmooth();
       lastMessageCount = data.messages.length;
     }
   } catch (err) {
-    console.error("Fetch failed", err);
-  } finally {
-    setTimeout(() => {
-      refreshNotice.style.display = "none";
-      chatWindow.classList.remove("loading");
-    }, 500);
+    console.error("Fetch error:", err);
   }
 }
 
-// Send user message and wait for AI
-chatForm.addEventListener("submit", async function (e) {
+// Handle user message submit
+chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const userMsg = chatInput.value.trim();
   if (!userMsg) return;
-  chatInput.value = "";
 
-  const now = new Date();
-  createMessage(userMsg, "user", now.toISOString());
+  const timestamp = new Date().toISOString();
 
-  showTypingIndicator();
+  // 1. Show user message immediately
+  createMessage(userMsg, "user", timestamp);
+  scrollToBottomSmooth();
 
-  // Send user message to backend
+  // 2. Send to backend
   try {
     await fetch("https://ai-website-1gto.onrender.com/send", {
       method: "POST",
@@ -101,53 +87,45 @@ chatForm.addEventListener("submit", async function (e) {
       body: JSON.stringify({ message: userMsg }),
     });
   } catch (err) {
-    console.error("Send error", err);
-    removeTypingIndicator();
+    console.error("Error sending message:", err);
     return;
   }
 
-  // Wait ~2.5 seconds to allow n8n + sheet to process
-  await new Promise((r) => setTimeout(r, 2500));
-  await waitForAIResponse();
-});
+  // 3. Show typing indicator
+  showTyping();
 
-async function waitForAIResponse() {
+  // 4. Wait ~2.5s to allow AI reply to generate and save to sheet
+  await new Promise((res) => setTimeout(res, 2500));
+
+  // 5. Poll for new AI reply
   let retries = 6;
-  let aiReceived = false;
+  let foundNew = false;
 
   while (retries-- > 0) {
-    await new Promise((r) => setTimeout(r, 1500));
-
+    await new Promise((r) => setTimeout(r, 1000));
     try {
       const res = await fetch("https://ai-website-1gto.onrender.com/all-messages");
       const data = await res.json();
 
       if (data.messages.length > lastMessageCount) {
-        const newMessages = data.messages.slice(lastMessageCount);
-        lastMessageCount = data.messages.length;
-
-        removeTypingIndicator();
-
-        newMessages.forEach((msg) =>
-          createMessage(msg.message, msg.user_type, msg.datetime)
-        );
-
-        aiReceived = true;
+        removeTyping();
+        await fetchMessages(); // Refresh whole chat after AI reply
+        foundNew = true;
         break;
       }
     } catch (err) {
-      console.error("Error while polling AI reply:", err);
+      console.error("Polling error:", err);
     }
   }
 
-  if (!aiReceived) {
-    console.warn("AI did not respond in time.");
-    removeTypingIndicator();
+  if (!foundNew) {
+    console.warn("AI reply not found in time.");
+    removeTyping();
   }
-}
+});
 
 // Manual refresh
 refreshBtn.addEventListener("click", fetchMessages);
 
-// Auto load on page open
+// Initial load
 window.addEventListener("load", fetchMessages);
