@@ -31,7 +31,7 @@ function createMessage(text, sender, time) {
   chatWindow.appendChild(msg);
 }
 
-// Show typing indicator
+// Typing indicator
 function showTyping() {
   const typing = document.createElement("div");
   typing.classList.add("message", "ai", "typing-indicator");
@@ -40,18 +40,15 @@ function showTyping() {
   scrollToBottomSmooth();
 }
 
-// Remove typing indicator
 function removeTyping() {
   const typing = document.querySelector(".typing-indicator");
   if (typing) typing.remove();
 }
 
-// Show refresh notice
+// Refresh loading indicator
 function showRefreshNotice() {
   refreshNotice.style.display = "inline-block";
 }
-
-// Hide refresh notice
 function hideRefreshNotice() {
   refreshNotice.style.display = "none";
 }
@@ -76,7 +73,7 @@ async function fetchMessages(fullRefresh = true) {
   } catch (err) {
     console.error("Fetch error:", err);
   } finally {
-    setTimeout(() => hideRefreshNotice(), 1000); // delay hide for smooth UI
+    setTimeout(hideRefreshNotice, 1000);
   }
 }
 
@@ -88,11 +85,11 @@ chatForm.addEventListener("submit", async (e) => {
 
   const timestamp = new Date().toISOString();
 
-  // 1. Show user message immediately
+  // 1. Show user message
   createMessage(userMsg, "user", timestamp);
   scrollToBottomSmooth();
 
-  // 2. Clear input box
+  // 2. Clear input bar (FIXED)
   chatInput.value = "";
 
   // 3. Send to backend
@@ -107,13 +104,13 @@ chatForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  // 4. Show typing indicator
+  // 4. Typing indicator
   showTyping();
 
-  // 5. Wait to allow AI reply to save (~10s based on sheet delay)
+  // 5. Wait ~10s for AI reply to save
   await new Promise((res) => setTimeout(res, 10000));
 
-  // 6. Poll for AI reply
+  // 6. Polling for AI reply
   let retries = 6;
   let foundNew = false;
 
@@ -125,7 +122,7 @@ chatForm.addEventListener("submit", async (e) => {
 
       if (data.messages.length > lastMessageCount) {
         removeTyping();
-        await fetchMessages(); // auto refresh after AI reply
+        await fetchMessages(); // refresh after AI reply
         foundNew = true;
         break;
       }
@@ -135,15 +132,13 @@ chatForm.addEventListener("submit", async (e) => {
   }
 
   if (!foundNew) {
-    console.warn("AI reply not found in time.");
+    console.warn("AI reply not found.");
     removeTyping();
   }
 });
 
 // Manual refresh
-refreshBtn.addEventListener("click", () => {
-  fetchMessages();
-});
+refreshBtn.addEventListener("click", fetchMessages);
 
 // Initial load
 window.addEventListener("load", fetchMessages);
