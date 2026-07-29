@@ -203,7 +203,7 @@ The assistant retrieves the stored rating and review from Google Sheets.
 **Ashutosh Kumar**
 
 LinkedIn:
-https://linkedin.com/in/YOUR-LINK
+https:[//linkedin.com/in/YOUR-LINK](https://www.linkedin.com/in/ashutoshkumar21/)
 
 GitHub:
 https://github.com/ashu-2120
