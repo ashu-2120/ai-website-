@@ -34,7 +34,7 @@ app.post("/send", async (req, res) => {
 app.get("/all-messages", async (req, res) => {
  try {
    const response = await axios.get(
-     "https://ashuk21.app.n8n.cloud/webhook/a0edb4e9-1d5e-4093-bd08-eec05ee3b908"
+     "https://ashuk.app.n8n.cloud/webhook/a3207662-e94d-4d34-b56c-44b167821d2b"
    );
    res.json({ messages: response.data });
  } catch (err) {
