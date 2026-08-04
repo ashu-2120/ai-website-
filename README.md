@@ -51,7 +51,33 @@ Built using **n8n workflow automation**, **OpenAI**, **Node.js**, and **Google S
 - Fetch API
 
 ---
-
+### Architecture ###
+User
+      │
+      ▼
+Frontend (HTML/CSS/JavaScript)
+      │
+      ▼
+Express Backend (Render)
+      │
+      ▼
+n8n Workflow
+      │
+      ▼
+GPT-4o
+      │
+      ├────────► Extract movie details
+      │
+      ├────────► Generate recommendation
+      │
+      ▼
+Google Sheets
+      │
+      ▼
+Express Backend
+      │
+      ▼
+Frontend
 ## 🧠 How It Works
 
 ### Step 1
