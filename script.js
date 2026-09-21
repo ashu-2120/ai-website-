@@ -64,7 +64,7 @@ async function fetchMessages(fullRefresh = true) {
       if (fullRefresh) chatWindow.innerHTML = "";
 
       data.messages.forEach((msg) =>
-        createMessage(msg.message, msg.user_type, msg.datetime)
+       createMessage(msg.message, msg.user_type, msg.date_time)
       );
 
       scrollToBottomSmooth();
